@@ -1,6 +1,8 @@
 /* eslint-disable*/
 // Karma configuration
 // Generated on Wed Dec 28 2016 13:40:25 GMT+0100 (CET)
+var resolve = require('rollup-plugin-node-resolve');
+var commonjs = require('rollup-plugin-commonjs');
 
 module.exports = function(config) {
   config.set({
@@ -11,13 +13,14 @@ module.exports = function(config) {
 
     // frameworks to use
     // available frameworks: https://npmjs.org/browse/keyword/karma-adapter
-    frameworks: ['browserify', 'mocha','chai'],
+    frameworks: ['mocha','chai'],
 
 
     // list of files / patterns to load in the browser
     files: [
       'https://unpkg.com/leaflet@1.1.0/dist/leaflet.js',
       'https://cdnjs.cloudflare.com/ajax/libs/localforage/1.4.3/localforage.min.js',
+      'node_modules/sinon/pkg/sinon.js',
       'test/*.js'
     ],
 
@@ -30,11 +33,26 @@ module.exports = function(config) {
     // preprocess matching files before serving them to the browser
     // available preprocessors: https://npmjs.org/browse/keyword/karma-preprocessor
     preprocessors: {
-      'test/*.js': [ 'browserify' ]
+      'test/*.js': ['rollup'],
     },
-    browserify: {
-      debug: true,
-      transform: [ ]
+    rollupPreprocessor: {
+     format: 'iife',
+     name: 'LeafletOffline',
+     sourcemap: 'inline',
+     external: [
+       'leaflet',
+       'localforage',
+       'sinon'
+     ],
+     globals: {
+       localforage: 'localforage',
+       leaflet: 'L',
+       sinon: 'sinon'
+     },
+     plugins: [
+       resolve(),
+       commonjs()
+   ]
     },
 
 
