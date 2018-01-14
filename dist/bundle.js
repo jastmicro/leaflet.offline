@@ -17,132 +17,176 @@ localforage.config({
 
 /**
  * A layer that uses store tiles when available. Falls back to online.
- * @class
+ * @class TileLayerOffline
  */
-var TileLayerOffline = L.TileLayer.extend(
-  /** @lends  TileLayerOffline */ {
-    diffZoom: 1,
-    /**
-     * Create tile HTMLElement
-     * @param  {array}   coords [description]
-     * @param  {Function} done   [description]
-     * @return {HTMLElement}          [description]
-     */
-    createTile: function createTile(coords, done) {
-      var tile = document.createElement('img');
+var TileLayerOffline = L.TileLayer.extend(/** @lends  TileLayerOffline */ {
+  /**
+  * Create tile HTMLElement
+  * @private
+  * @param  {array}   coords [description]
+  * @param  {Function} done   [description]
+  * @return {HTMLElement}          [description]
+  */
+  createTile: function createTile(coords, done) {
+    var tile = L.TileLayer.prototype.createTile.call(this, coords, done);
+    var url = tile.src;
+    tile.src = undefined;
+    this.setDataUrl(tile, url).then(function (dataurl) {
+      tile.src = dataurl;
+    }).catch(function () {
+      tile.src = url;
+    });
+    return tile;
+  },
+  /**
+   * dataurl from locatostorage
+   * @param {DomElement} tile [description]
+   * @param {string} url  [description]
+   * @return {Promise} resolves to base64 url
+   */
+  setDataUrl: function setDataUrl(tile, url) {
+    var this$1 = this;
 
-      L.DomEvent.on(tile, 'load', L.bind(this._tileOnLoad, this, done, tile));
-      L.DomEvent.on(tile, 'error', L.bind(this._tileOnError, this, done, tile));
-
-      if (this.options.crossOrigin) {
-        tile.crossOrigin = '';
-      }
-      tile.alt = '';
-
-      tile.setAttribute('role', 'presentation');
-      this.getTileUrl(coords).then(function (url) {
-        tile.src = url;
-      }).catch(function (e) {
-        throw new Error(e);
-      });
-
-      return tile;
-    },
-    /**
-     * [description]
-     * @param  {array} coords [description]
-     * @return {string} url
-     */
-    getTileUrl: function getTileUrl(coords) {
-      var $this = this;
-      var p = new Promise((function (resolve, reject) {
-        var url = L.TileLayer.prototype.getTileUrl.call($this, coords);
-        localforage.getItem($this._getStorageKey(url)).then(function (data) {
-          if (data && typeof data === 'object') {
-            resolve(URL.createObjectURL(data));
-          }
-          resolve(url);
-        }).catch(function (e) {
-          reject(e);
-        });
-      }));
-      return p;
-    },
-    /**
-     * @private
-     * @param  {[type]} url [description]
-     * @return {[type]}     [description]
-     */
-    _getStorageKey: function _getStorageKey(url) {
-      var key;
-      var subdomainpos = this._url.indexOf('{s}');
-      if (subdomainpos > 0) {
-        key = url.substring(0, subdomainpos) +
+    return new Promise(function (resolve, reject) {
+      localforage.getItem(this$1._getStorageKey(url)).then(function (data) {
+        if (data && typeof data === 'object') {
+          resolve(URL.createObjectURL(data));
+        } else {
+          reject();
+        }
+      }).catch(function (e) { reject(e); });
+    });
+  },
+  /**
+   * get key to use for storage
+   * @private
+   * @param  {string} url url used to load tile
+   * @return {string} unique identifier.
+   */
+  _getStorageKey: function _getStorageKey(url) {
+    var key;
+    var subdomainpos = this._url.indexOf('{s}');
+    if (subdomainpos > 0) {
+      key = url.substring(0, subdomainpos) +
         this.options.subdomains['0'] +
         url.substring(subdomainpos + 1, url.length);
-      }
-      return key || url;
-    },
-    /**
-     * @return {number} Number of simultanous downloads from tile server
-     */
-    getSimultaneous: function getSimultaneous() {
-      return this.options.subdomains.length;
-    },
-    /**
+    }
+    return key || url;
+  },
+  /**
+   * @return {number} Number of simultanous downloads from tile server
+   */
+  getSimultaneous: function getSimultaneous() {
+    return this.options.subdomains.length;
+  },
+  /**
    * getTileUrls for single zoomlevel
    * @param  {object} L.latLngBounds
    * @param  {number} zoom
    * @return {object[]} the tile urls, key, url
    */
-    getTileUrls: function getTileUrls(bounds, zoom) {
-      var this$1 = this;
+  getTileUrls: function getTileUrls(bounds, zoom) {
+    var this$1 = this;
 
-      var tiles = [];
-      var origurl = this._url;
-      // getTileUrl uses current zoomlevel, we want to overwrite it
-      this.setUrl(this._url.replace('{z}', zoom), true);
-      var tileBounds = L.bounds(
-        bounds.min.divideBy(this.getTileSize().x).floor(),
-        bounds.max.divideBy(this.getTileSize().x).floor()
-      );
-      var url;
-      for (var j = tileBounds.min.y; j <= tileBounds.max.y; j++) {
-        for (var i = tileBounds.min.x; i <= tileBounds.max.x; i++) {
-          var tilePoint = new L.Point(i, j);
-          url = L.TileLayer.prototype.getTileUrl.call(this$1, tilePoint);
-          tiles.push({
-            key: this$1._getStorageKey(url),
-            url: url,
-          });
-        }
+    var tiles = [];
+    var origurl = this._url;
+    // getTileUrl uses current zoomlevel, we want to overwrite it
+    this.setUrl(this._url.replace('{z}', zoom), true);
+    var tileBounds = L.bounds(
+      bounds.min.divideBy(this.getTileSize().x).floor(),
+      bounds.max.divideBy(this.getTileSize().x).floor()
+    );
+    var url;
+    for (var j = tileBounds.min.y; j <= tileBounds.max.y; j += 1) {
+      for (var i = tileBounds.min.x; i <= tileBounds.max.x; i += 1) {
+        var tilePoint = new L.Point(i, j);
+        url = L.TileLayer.prototype.getTileUrl.call(this$1, tilePoint);
+        tiles.push({
+          key: this$1._getStorageKey(url),
+          url: url,
+        });
       }
-      // restore url
-      this.setUrl(origurl, true);
-      return tiles;
-    },
-  });
+    }
+    // restore url
+    this.setUrl(origurl, true);
+    return tiles;
+  },
+});
 
 /**
- *
+* Tiles removed event
+* @event storagesize
+* @memberof TileLayerOffline
+* @type {object}
+*/
+
+/**
+ * Start saving tiles
+ * @event savestart
+ * @memberof TileLayerOffline
+ * @type {object}
+ */
+
+/**
+ * Tile fetched
+ * @event loadtileend
+ * @memberof TileLayerOffline
+ * @type {object}
+ */
+
+/**
+ * All tiles fetched
+ * @event loadend
+ * @memberof TileLayerOffline
+ * @type {object}
+ */
+
+/**
+ * Tile saved
+ * @event savetileend
+ * @memberof TileLayerOffline
+ * @type {object}
+ */
+
+/**
+ * All tiles saved
+ * @event saveend
+ * @memberof TileLayerOffline
+ * @type {object}
+ */
+
+/**
+ * Tile removed
+ * @event tilesremoved
+ * @memberof TileLayerOffline
+ * @type {object}
+ */
+
+
+/**
+ * @function L.tileLayer.offline
  * @param  {string} url     [description]
  * @param  {object} options {@link http://leafletjs.com/reference-1.2.0.html#tilelayer}
  * @return {TileLayerOffline}      an instance of TileLayerOffline
  */
-L.tileLayer.offline = function (url, options) {
-  return new TileLayerOffline(url, options);
-};
+L.tileLayer.offline = function (url, options) { return new TileLayerOffline(url, options); };
+
+/**
+ * Status of ControlSaveTiles, used internal and as object for events.
+ * @typedef {Object} ControlStatus
+ * @property {number} storagesize
+ * @property {number} lengthToBeSaved
+ * @property {number} lengthSaved
+ * @property {number} lengthLoaded
+ * @property {array} _tilesforSave
+ */
+
 
 /**
 * Shows control on map to save tiles
 * @class ControlSaveTiles
 *
-* @property {Object} status
-* @property {number} status.storagesize
-* @property {number} status.lengthToBeSaved
-* @property {number} status.lengthSaved
-* @property {number} status.lengthLoaded
-* @property {array} status._tilesforSave
+* @property {ControlStatus} status
 */
 var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
   options: {
