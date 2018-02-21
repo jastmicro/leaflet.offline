@@ -377,8 +377,6 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
    * @return {void}
    */
   _loadTile: function _loadTile() {
-    var this$1 = this;
-
     var self = this;
     var tileUrl = self.status._tilesforSave.shift();
     var xhr = new XMLHttpRequest();
@@ -388,7 +386,7 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
     xhr.onreadystatechange = function () {
       if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
         self.status.lengthLoaded += 1;
-        self._saveTile(tileUrl.key, this$1.response);
+        self._saveTile(tileUrl.key, xhr.response);
         if (self.status._tilesforSave.length > 0) {
           self._loadTile();
           self._baseLayer.fire('loadtileend', self.status);
