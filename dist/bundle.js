@@ -17,6 +17,7 @@ localforage.config({
 
 /**
  * A layer that uses store tiles when available. Falls back to online.
+ * Use this layer directly or extend it
  * @class TileLayerOffline
  */
 var TileLayerOffline = L.TileLayer.extend(/** @lends  TileLayerOffline */ {
@@ -39,7 +40,7 @@ var TileLayerOffline = L.TileLayer.extend(/** @lends  TileLayerOffline */ {
     return tile;
   },
   /**
-   * dataurl from locatostorage
+   * dataurl from localstorage
    * @param {DomElement} tile [description]
    * @param {string} url  [description]
    * @return {Promise} resolves to base64 url
@@ -172,13 +173,15 @@ var TileLayerOffline = L.TileLayer.extend(/** @lends  TileLayerOffline */ {
 L.tileLayer.offline = function (url, options) { return new TileLayerOffline(url, options); };
 
 /**
- * Status of ControlSaveTiles, used internal and as object for events.
+ * Status of ControlSaveTiles, keeps info about process during downloading
+ * ans saving tiles. Used internal and as object for events.
  * @typedef {Object} ControlStatus
- * @property {number} storagesize
- * @property {number} lengthToBeSaved
- * @property {number} lengthSaved
- * @property {number} lengthLoaded
- * @property {array} _tilesforSave
+ * @property {number} storagesize total number of saved tiles.
+ * @property {number} lengthToBeSaved number of tiles that will be saved in db
+ * during current process
+ * @property {number} lengthSaved number of tiles saved during current process
+ * @property {number} lengthLoaded number of tiles loaded during current process
+ * @property {array} _tilesforSave tiles waiting for processing
  */
 
 
@@ -219,7 +222,7 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
   },
   /**
    * Set storagesize prop on object init
-   * @param {Function} callback with arg number of saved files
+   * @param {Function} [callback] receives arg number of saved files
    * @private
    */
   setStorageSize: function setStorageSize(callback) {
@@ -248,8 +251,8 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
     this.setStorageSize(callback);
   },
   /**
-   * [setLayer description]
-   * @param {Object} layer [description]
+   * Change baseLayer
+   * @param {TileLayerOffline} layer
    */
   setLayer: function setLayer(layer) {
     this._baseLayer = layer;
@@ -263,7 +266,7 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
   },
   /**
    * set saveWhatYouSee
-   * @param {boolean}
+   * @param {boolean} saveWhatYouSee
    */
   setSaveWhatYouSee: function setSaveWhatYouSee(saveWhatYouSee) {
     this.options.saveWhatYouSee = saveWhatYouSee;
@@ -277,7 +280,7 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
   },
   /**
    * set the zoomLevels
-   * @param {array} [min,max]
+   * @param {array} zoomlevels min,max
    */
   setZoomlevels: function setZoomlevels(zoomlevels) {
     this.options.zoomlevels = zoomlevels;
@@ -304,6 +307,11 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
 
     return link;
   },
+  /**
+   * starts processing tiles
+   * @private
+   * @return {void}
+   */
   _saveTiles: function _saveTiles() {
     var this$1 = this;
 
@@ -437,15 +445,16 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
 * @function L.control.savetiles
 * @param  {object} baseLayer     {@link http://leafletjs.com/reference-1.2.0.html#tilelayer}
 * @property {Object} options
-* @property {string} options.position
-* @property {string} options.saveText
-* @property {string} options.rmText
-* @property {number} options.maxZoom maximum zoom level that will be reached
-* when saving tiles with saveWhatYouSee
-* @property {boolean} options.saveWhatYouSee save the tiles that you see
-* on screen plus deeper zooms, ignores zoomLevels
-* @property {function} options.confirm function called before confirm, default null
-* @property {function} options.confirmRemoval function called before confirm, default null
+* @property {string} [options.position] default topleft
+* @property {string} [options.saveText] html for save button, default +
+* @property {string} [options.rmText] html for remove button, deflault -
+* @property {number} [options.maxZoom] maximum zoom level that will be reached
+* when saving tiles with saveWhatYouSee. Default 19
+* @property {boolean} [options.saveWhatYouSee] save the tiles that you see
+* on screen plus deeper zooms, ignores zoomLevels options. Default false
+* @property {function} [options.confirm] function called before confirm, default null.
+* Args of function are ControlStatus and callback.
+* @property {function} [options.confirmRemoval] function called before confirm, default null
 * @return {ControlSaveTiles}
 */
 L.control.savetiles = function (baseLayer, options) { return new ControlSaveTiles(baseLayer, options); };

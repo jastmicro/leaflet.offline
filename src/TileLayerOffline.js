@@ -4,6 +4,7 @@ import localforage from './localforage';
 
 /**
  * A layer that uses store tiles when available. Falls back to online.
+ * Use this layer directly or extend it
  * @class TileLayerOffline
  */
 const TileLayerOffline = L.TileLayer.extend(/** @lends  TileLayerOffline */ {
@@ -26,7 +27,7 @@ const TileLayerOffline = L.TileLayer.extend(/** @lends  TileLayerOffline */ {
     return tile;
   },
   /**
-   * dataurl from locatostorage
+   * dataurl from localstorage
    * @param {DomElement} tile [description]
    * @param {string} url  [description]
    * @return {Promise} resolves to base64 url
