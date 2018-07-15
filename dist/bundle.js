@@ -31,7 +31,7 @@ var TileLayerOffline = L.TileLayer.extend(/** @lends  TileLayerOffline */ {
   createTile: function createTile(coords, done) {
     var tile = L.TileLayer.prototype.createTile.call(this, coords, done);
     var url = tile.src;
-    tile.src = undefined;
+    tile.src = '';
     this.setDataUrl(tile, url).then(function (dataurl) {
       tile.src = dataurl;
     }).catch(function () {
@@ -316,7 +316,6 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
     var this$1 = this;
 
     var bounds;
-    var self = this;
     var tiles = [];
     // minimum zoom to prevent the user from saving the whole world
     var minZoom = 5;
@@ -340,7 +339,7 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
 
     var latlngBounds = this.options.bounds || this._map.getBounds();
 
-    for (var i in zoomlevels) {
+    for (var i = 0; i < zoomlevels.length; i += 1) {
       bounds = L.bounds(
         this$1._map.project(latlngBounds.getNorthWest(), zoomlevels[i]),
         this$1._map.project(latlngBounds.getSouthEast(), zoomlevels[i])
@@ -349,10 +348,10 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
     }
     this._resetStatus(tiles);
     var succescallback = function () {
-      self._baseLayer.fire('savestart', self.status);
-      var subdlength = self._baseLayer.getSimultaneous();
+      this$1._baseLayer.fire('savestart', this$1.status);
+      var subdlength = this$1._baseLayer.getSimultaneous();
       for (var i = 0; i < subdlength; i += 1) {
-        self._loadTile();
+        this$1._loadTile();
       }
     };
     if (this.options.confirm) {
@@ -361,6 +360,11 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
       succescallback();
     }
   },
+  /**
+   * set status prop on save init
+   * @param {string[]} tiles [description]
+   * @private
+   */
   _resetStatus: function _resetStatus(tiles) {
     this.status = {
       lengthLoaded: 0,
@@ -384,7 +388,7 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
     xhr.responseType = 'blob';
     xhr.send();
     xhr.onreadystatechange = function () {
-      if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
+      if (xhr.readyState === XMLHttpRequest.DONE && (xhr.status >= 200 && xhr.status <= 300)) {
         self.status.lengthLoaded += 1;
         self._saveTile(tileUrl.key, xhr.response);
         if (self.status._tilesforSave.length > 0) {
@@ -396,6 +400,8 @@ var ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
             self._baseLayer.fire('loadend', self.status);
           }
         }
+      } else {
+        throw new Error(("Request failed with status " + (xhr.status)));
       }
     };
   },
