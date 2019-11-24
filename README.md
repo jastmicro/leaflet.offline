@@ -8,12 +8,18 @@ Just a modern and slim library to store tiles offline.
 - [example](http://allartk.github.io/leaflet.offline/)
 - [api docs](docs/api.md)
 
-Warning: The api of version 2 is different from version 1.
+Warning: The api of version 2 is different from version 1. 2 is still in development.
+
+## (Planned) features in version 2
+
+- Add geojson layer to show stored tiles on map (done)
+- Split storage methods to seperate module. (done)
+- Switch from localforage to idb (mostly done)
 
 ## Dependencies
 
 - [Leafletjs](http://leafletjs.com/)
-- [localforage](https://github.com/localForage/localForage) To store the tiles
+- [idb](https://www.npmjs.com/package/idb) To store the tiles with promises
 
 ## Install
 

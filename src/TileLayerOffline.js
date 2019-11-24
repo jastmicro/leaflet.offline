@@ -1,6 +1,5 @@
 import L from 'leaflet';
-import localforage from './localforage';
-import { getTileUrls, getTileUrl } from './TileManager';
+import { getTileUrls, getTileUrl, getTile } from './TileManager';
 
 /**
  * A layer that uses store tiles when available. Falls back to online.
@@ -34,13 +33,13 @@ const TileLayerOffline = L.TileLayer.extend(
     },
     /**
      * dataurl from localstorage
+     * @private
      * @param {object} coords x,y,z
-     * @return {Promise} resolves to base64 url
+     * @return {Promise<string>} objecturl
      */
     setDataUrl(coords) {
       return new Promise((resolve, reject) => {
-        localforage
-          .getItem(this._getStorageKey(coords))
+        getTile(this._getStorageKey(coords))
           .then((data) => {
             if (data && typeof data === 'object') {
               resolve(URL.createObjectURL(data));
@@ -60,7 +59,10 @@ const TileLayerOffline = L.TileLayer.extend(
      * @return {string} unique identifier.
      */
     _getStorageKey(coords) {
-      return getTileUrl(this._url, { ...coords, s: this.options.subdomains['0'] });
+      return getTileUrl(this._url, {
+        ...coords,
+        s: this.options.subdomains['0'],
+      });
     },
     /**
      * @return {number} Number of simultanous downloads from tile server
@@ -70,6 +72,7 @@ const TileLayerOffline = L.TileLayer.extend(
     },
     /**
      * getTileUrls for single zoomlevel
+     * @private
      * @param  {object} L.latLngBounds
      * @param  {number} zoom
      * @return {object[]} the tile urls, key, url, x, y, z
@@ -84,7 +87,7 @@ const TileLayerOffline = L.TileLayer.extend(
  * Tiles removed event
  * @event storagesize
  * @memberof TileLayerOffline
- * @type {object}
+ * @instance
  */
 
 /**
