@@ -1,61 +1,59 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('leaflet'), require('localforage')) :
-  typeof define === 'function' && define.amd ? define(['exports', 'leaflet', 'localforage'], factory) :
-  (global = global || self, factory(global.LeafletOffline = {}, global.L, global.localforage));
-}(this, (function (exports, L, localforage) { 'use strict';
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('leaflet'), require('idb')) :
+  typeof define === 'function' && define.amd ? define(['exports', 'leaflet', 'idb'], factory) :
+  (global = global || self, factory(global.LeafletOffline = {}, global.L, global.idb));
+}(this, (function (exports, L, idb) { 'use strict';
 
   L = L && L.hasOwnProperty('default') ? L['default'] : L;
-  localforage = localforage && localforage.hasOwnProperty('default') ? localforage['default'] : localforage;
 
-  var lf = localforage.createInstance({
-    name: 'leaflet_offline',
-    version: 1.0,
-    size: 4980736,
-    storeName: 'tiles',
-    description: 'the tile blobs, keyed by url',
-  });
+  var tileStoreName = 'tileStore';
+  var urlTemplateIndex = 'urlTemplate';
 
-  var meta = localforage.createInstance({
-    name: 'leaflet_offline_areas',
-    version: 1.0,
-    size: 4980736,
-    storeName: 'area',
-    description: 'tile key values as object  ({ key: value, z: z, x: x, y: y}) keyed by {z}_{x}_{y}',
+  var dbPromise = idb.openDB('leaflet.offline', 1, {
+    upgrade: function upgrade(db) {
+      var tileStore = db.createObjectStore(tileStoreName, {
+        keyPath: 'key',
+      });
+      tileStore.createIndex(urlTemplateIndex, 'urlTemplate');
+      tileStore.createIndex('z', 'z');
+    },
   });
 
   /**
    *
    * @typedef {Object} tileInfo
-   * @property {string} tileInfo.key storage key
-   * @property {string} tileInfo.url resolved url
-   * @property {string} tileInfo.urlTemplate orig url, used to find tiles per layer
-   * @property {string} tileInfo.x x coord of tile
-   * @property {string} tileInfo.y y coord of tile
-   * @property {string} tileInfo.z tile zoomlevel
+   * @property {string} key storage key
+   * @property {string} url resolved url
+   * @property {string} urlTemplate orig url, used to find tiles per layer
+   * @property {string} x left point of tile
+   * @property {string} y top point coord of tile
+   * @property {string} z tile zoomlevel
    */
 
   /**
-   * @return Promise which resolves to int
+   * @return {Promise<Number>} which resolves to int
    */
-  function getStorageLength() {
-    return lf.length();
+  async function getStorageLength() {
+    return (await dbPromise).count(tileStoreName);
   }
 
   /**
-   * Tip: you can filter the result (eg to get tiles from one resource)
+   * @param {string} urlTemplate
+   *
+   * @return {Promise<tileInfo[]>}
    */
-  function getStorageInfo() {
-    var result = [];
-    return meta
-      .iterate(function (value) {
-        result.push(value);
-      })
-      .then(function () { return result; });
+  async function getStorageInfo(urlTemplate) {
+    var range = IDBKeyRange.only(urlTemplate);
+    return (await dbPromise).getAllFromIndex(
+      tileStoreName,
+      urlTemplateIndex,
+      range
+    );
   }
 
   /**
-   * resolves to blob
    * @param {string} tileUrl
+   * @return {Promise<blob>}
    */
   function downloadTile(tileUrl) {
     return fetch(tileUrl).then(function (response) {
@@ -68,14 +66,12 @@
   /**
    * @param {tileInfo}
    * @param {blob} blob
+   *
+   * @return {Promise}
    */
-  function saveTile(tileInfo, blob) {
-    return lf.removeItem(tileInfo.key).then(function () {
-      lf.setItem(tileInfo.key, blob).then(function () {
-        var record = Object.assign({}, tileInfo, {createdAt: Date.now()});
-        return meta.setItem(tileInfo.key, record);
-      });
-    });
+  async function saveTile(tileInfo, blob) {
+    return (await dbPromise).put(tileStoreName, Object.assign({}, {blob: blob},
+      tileInfo));
   }
 
   /**
@@ -83,9 +79,12 @@
    * @param {string} urlTemplate
    * @param {object} data  x, y, z, s
    * @param {string} data.s subdomain
+   *
+   * @returns {string}
    */
   function getTileUrl(urlTemplate, data) {
-    return L.Util.template(urlTemplate, Object.assign({}, data, {r: L.Browser.retina ? '@2x' : ''}));
+    return L.Util.template(urlTemplate, Object.assign({}, data,
+      {r: L.Browser.retina ? '@2x' : ''}));
   }
   /**
    * @param {object} layer leaflet tilelayer
@@ -105,8 +104,10 @@
         var tilePoint = new L.Point(i, j);
         var data = { x: i, y: j, z: zoom };
         tiles.push({
-          key: getTileUrl(layer._url, Object.assign({}, data, {s: layer.options.subdomains['0']})),
-          url: getTileUrl(layer._url, Object.assign({}, data, {s: layer._getSubdomain(tilePoint)})),
+          key: getTileUrl(layer._url, Object.assign({}, data,
+            {s: layer.options.subdomains['0']})),
+          url: getTileUrl(layer._url, Object.assign({}, data,
+            {s: layer._getSubdomain(tilePoint)})),
           z: zoom,
           x: i,
           y: j,
@@ -119,14 +120,18 @@
   }
   /**
    * Get a geojson of tiles from one resource
-   * TODO, polygons instead of points, and per per zoomlevel?
+   * TODO, per zoomlevel?
+   *
+   * @param {object} layer
+   *
+   * @return {object} geojson
    */
   function getStoredTilesAsJson(layer) {
     var featureCollection = {
       type: 'FeatureCollection',
       features: [],
     };
-    return getStorageInfo().then(function (results) {
+    return getStorageInfo(layer._url).then(function (results) {
       for (var i = 0; i < results.length; i += 1) {
         if (results[i].urlTemplate !== layer._url) {
           // eslint-disable-next-line no-continue
@@ -141,8 +146,14 @@
           topLeftPoint.y + layer.getTileSize().y
         );
 
-        var topLeftlatlng = L.CRS.EPSG3857.pointToLatLng(topLeftPoint, results[i].z);
-        var botRightlatlng = L.CRS.EPSG3857.pointToLatLng(bottomRightPoint, results[i].z);
+        var topLeftlatlng = L.CRS.EPSG3857.pointToLatLng(
+          topLeftPoint,
+          results[i].z
+        );
+        var botRightlatlng = L.CRS.EPSG3857.pointToLatLng(
+          bottomRightPoint,
+          results[i].z
+        );
         featureCollection.features.push({
           type: 'Feature',
           properties: results[i],
@@ -166,18 +177,29 @@
   /**
    * Remove tile by key
    * @param {string} key
+   *
+   * @returns {Promise}
    */
-  function removeTile(key) {
-    lf.removeItem(key).then(function () { return meta.removeItem(key); });
+  async function removeTile(key) {
+    return (await dbPromise).delete(tileStoreName, key);
+  }
+
+  /**
+   * @param {string} key
+   *
+   * @returns {Promise<blob>}
+   */
+  async function getTile(key) {
+    return (await dbPromise).get(tileStoreName, key).then(function (result) { return result.blob; });
   }
 
   /**
    * Remove everything
    *
-   * @return Promise
+   * @return {Promise}
    */
-  function truncate() {
-    return lf.clear().then(function () { return meta.clear(); });
+  async function truncate() {
+    return (await dbPromise).clear(tileStoreName);
   }
 
   /**
@@ -212,15 +234,15 @@
       },
       /**
        * dataurl from localstorage
+       * @private
        * @param {object} coords x,y,z
-       * @return {Promise} resolves to base64 url
+       * @return {Promise<string>} objecturl
        */
       setDataUrl: function setDataUrl(coords) {
         var this$1 = this;
 
         return new Promise(function (resolve, reject) {
-          lf
-            .getItem(this$1._getStorageKey(coords))
+          getTile(this$1._getStorageKey(coords))
             .then(function (data) {
               if (data && typeof data === 'object') {
                 resolve(URL.createObjectURL(data));
@@ -240,7 +262,8 @@
        * @return {string} unique identifier.
        */
       _getStorageKey: function _getStorageKey(coords) {
-        return getTileUrl(this._url, Object.assign({}, coords, {s: this.options.subdomains['0']}));
+        return getTileUrl(this._url, Object.assign({}, coords,
+          {s: this.options.subdomains['0']}));
       },
       /**
        * @return {number} Number of simultanous downloads from tile server
@@ -250,6 +273,7 @@
       },
       /**
        * getTileUrls for single zoomlevel
+       * @private
        * @param  {object} L.latLngBounds
        * @param  {number} zoom
        * @return {object[]} the tile urls, key, url, x, y, z
@@ -264,7 +288,7 @@
    * Tiles removed event
    * @event storagesize
    * @memberof TileLayerOffline
-   * @type {object}
+   * @instance
    */
 
   /**
@@ -590,6 +614,7 @@
   exports.getStorageInfo = getStorageInfo;
   exports.getStorageLength = getStorageLength;
   exports.getStoredTilesAsJson = getStoredTilesAsJson;
+  exports.getTileUrls = getTileUrls;
   exports.removeTile = removeTile;
   exports.truncate = truncate;
 
