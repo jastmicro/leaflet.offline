@@ -8,6 +8,7 @@ import { getTileUrls, getTileUrl, getTile } from './TileManager';
  */
 const TileLayerOffline = L.TileLayer.extend(
   /** @lends  TileLayerOffline */ {
+
     /**
      * Create tile HTMLElement
      * @private
@@ -74,57 +75,8 @@ const TileLayerOffline = L.TileLayer.extend(
     getTileUrls(bounds, zoom) {
       return getTileUrls(this, bounds, zoom);
     },
-  },
-);
+  });
 
-/**
- * Tiles removed event
- * @event storagesize
- * @memberof TileLayerOffline
- * @instance
- */
-
-/**
- * Start saving tiles
- * @event savestart
- * @memberof TileLayerOffline
- * @type {object}
- */
-
-/**
- * Tile fetched
- * @event loadtileend
- * @memberof TileLayerOffline
- * @type {object}
- */
-
-/**
- * All tiles fetched
- * @event loadend
- * @memberof TileLayerOffline
- * @type {object}
- */
-
-/**
- * Tile saved
- * @event savetileend
- * @memberof TileLayerOffline
- * @type {object}
- */
-
-/**
- * All tiles saved
- * @event saveend
- * @memberof TileLayerOffline
- * @type {object}
- */
-
-/**
- * Tile removed
- * @event tilesremoved
- * @memberof TileLayerOffline
- * @type {object}
- */
 
 /**
  * @function L.tileLayer.offline

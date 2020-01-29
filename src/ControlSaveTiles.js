@@ -1,7 +1,5 @@
 import L from 'leaflet';
-import {
-  truncate, getStorageLength, downloadTile, saveTile,
-} from './TileManager';
+import { truncate, getStorageLength, downloadTile, saveTile } from './TileManager';
 
 /**
  * Status of ControlSaveTiles, keeps info about process during downloading
@@ -21,189 +19,194 @@ import {
  *
  * @property {ControlStatus} status
  */
-const ControlSaveTiles = L.Control.extend(
-  /** @lends ControlSaveTiles */ {
-    options: {
-      position: 'topleft',
-      saveText: '+',
-      rmText: '-',
-      maxZoom: 19,
-      saveWhatYouSee: false,
-      bounds: null,
-      confirm: null,
-      confirmRemoval: null,
-    },
-    status: {
-      storagesize: null,
-      lengthToBeSaved: null,
-      lengthSaved: null,
-      lengthLoaded: null,
-      _tilesforSave: null,
-    },
-    /**
+const ControlSaveTiles = L.Control.extend(/** @lends ControlSaveTiles */ {
+  options: {
+    position: 'topleft',
+    saveText: '+',
+    rmText: '-',
+    maxZoom: 19,
+    saveWhatYouSee: false,
+    bounds: null,
+    confirm: null,
+    confirmRemoval: null,
+  },
+  status: {
+    storagesize: null,
+    lengthToBeSaved: null,
+    lengthSaved: null,
+    lengthLoaded: null,
+    _tilesforSave: null,
+  },
+  /**
      * @private
      * @param  {Object} baseLayer
      * @param  {Object} options
      * @return {void}
      */
-    initialize(baseLayer, options) {
-      this._baseLayer = baseLayer;
-      this.setStorageSize();
-      L.setOptions(this, options);
-    },
-    /**
+  initialize(baseLayer, options) {
+    this._baseLayer = baseLayer;
+    this.setStorageSize();
+    L.setOptions(this, options);
+  },
+  /**
      * Set storagesize prop on object init
      * @param {Function} [callback] receives arg number of saved files
      * @private
      */
-    setStorageSize(callback) {
-      if (this.status.storagesize) {
-        callback(this.status.storagesize);
-        return;
-      }
-      getStorageLength()
-        .then((numberOfKeys) => {
-          this.status.storagesize = numberOfKeys;
-          this._baseLayer.fire('storagesize', this.status);
-          if (callback) {
-            callback(numberOfKeys);
-          }
-        })
-        .catch((err) => {
-          callback(0);
-          throw err;
-        });
-    },
-    /**
+  setStorageSize(callback) {
+    if (this.status.storagesize) {
+      callback(this.status.storagesize);
+      return;
+    }
+    getStorageLength()
+      .then((numberOfKeys) => {
+        this.status.storagesize = numberOfKeys;
+        /**
+        * Event when status.storagesize changes
+        *
+        * @event TileLayerOffline#storagesize
+        * @type {ControlStatus}
+        */
+        this._baseLayer.fire('storagesize', this.status);
+        if (callback) {
+          callback(numberOfKeys);
+        }
+      })
+      .catch((err) => {
+        callback(0);
+        throw err;
+      });
+  },
+  /**
      * get number of saved files
      * @param  {Function} callback [description]
      * @private
      */
-    getStorageSize(callback) {
-      this.setStorageSize(callback);
-    },
-    /**
+  getStorageSize(callback) {
+    this.setStorageSize(callback);
+  },
+  /**
      * Change baseLayer
      * @param {TileLayerOffline} layer
      */
-    setLayer(layer) {
-      this._baseLayer = layer;
-    },
-    /**
+  setLayer(layer) {
+    this._baseLayer = layer;
+  },
+  /**
      * Update a config option
      * @param {string} name
      * @param {mixed} value
      */
-    setOption(name, value) {
-      this.options[name] = value;
-    },
-    onAdd() {
-      const container = L.DomUtil.create('div', 'savetiles leaflet-bar');
-      const { options } = this;
-      this._createButton(options.saveText, 'savetiles', container, this._saveTiles);
-      this._createButton(options.rmText, 'rmtiles', container, this._rmTiles);
-      return container;
-    },
-    _createButton(html, className, container, fn) {
-      const link = L.DomUtil.create('a', className, container);
-      link.innerHTML = html;
-      link.href = '#';
+  setOption(name, value) {
+    this.options[name] = value;
+  },
+  onAdd() {
+    const container = L.DomUtil.create('div', 'savetiles leaflet-bar');
+    const { options } = this;
+    this._createButton(options.saveText, 'savetiles', container, this._saveTiles);
+    this._createButton(options.rmText, 'rmtiles', container, this._rmTiles);
+    return container;
+  },
+  _createButton(html, className, container, fn) {
+    const link = L.DomUtil.create('a', className, container);
+    link.innerHTML = html;
+    link.href = '#';
 
-      L.DomEvent.on(link, 'mousedown dblclick', L.DomEvent.stopPropagation)
-        .on(link, 'click', L.DomEvent.stop)
-        .on(link, 'click', fn, this)
-        .on(link, 'click', this._refocusOnMap, this);
-      // TODO enable disable on layer change map
+    L.DomEvent.on(link, 'mousedown dblclick', L.DomEvent.stopPropagation)
+      .on(link, 'click', L.DomEvent.stop)
+      .on(link, 'click', fn, this)
+      .on(link, 'click', this._refocusOnMap, this);
+    // TODO enable disable on layer change map
 
-      return link;
-    },
-    /**
+    return link;
+  },
+  /**
      * starts processing tiles
      * @private
      * @return {void}
      */
-    _saveTiles() {
-      let bounds;
-      let tiles = [];
-      // minimum zoom to prevent the user from saving the whole world
-      const minZoom = 5;
-      // current zoom or zoom options
-      let zoomlevels = [];
+  _saveTiles() {
+    let bounds;
+    let tiles = [];
+    // minimum zoom to prevent the user from saving the whole world
+    const minZoom = 5;
+    // current zoom or zoom options
+    let zoomlevels = [];
 
-      if (this.options.saveWhatYouSee) {
-        const currentZoom = this._map.getZoom();
-        if (currentZoom < minZoom) {
-          throw new Error("It's not possible to save with zoom below level 5.");
-        }
-        const { maxZoom } = this.options;
-
-        for (let zoom = currentZoom; zoom <= maxZoom; zoom += 1) {
-          zoomlevels.push(zoom);
-        }
-      } else {
-        zoomlevels = this.options.zoomlevels || [this._map.getZoom()];
+    if (this.options.saveWhatYouSee) {
+      const currentZoom = this._map.getZoom();
+      if (currentZoom < minZoom) {
+        throw new Error("It's not possible to save with zoom below level 5.");
       }
+      const { maxZoom } = this.options;
 
-      const latlngBounds = this.options.bounds || this._map.getBounds();
+      for (let zoom = currentZoom; zoom <= maxZoom; zoom += 1) {
+        zoomlevels.push(zoom);
+      }
+    } else {
+      zoomlevels = this.options.zoomlevels || [this._map.getZoom()];
+    }
 
-      for (let i = 0; i < zoomlevels.length; i += 1) {
-        bounds = L.bounds(
-          this._map.project(latlngBounds.getNorthWest(), zoomlevels[i]),
-          this._map.project(latlngBounds.getSouthEast(), zoomlevels[i]),
-        );
-        tiles = tiles.concat(this._baseLayer.getTileUrls(bounds, zoomlevels[i]));
-      }
-      this._resetStatus(tiles);
-      const succescallback = async () => {
-        this._baseLayer.fire('savestart', this.status);
-        //const subdlength = this._baseLayer.getSimultaneous();
-        // TODO!
-        // storeTiles(tiles, subdlength);
-        // using the non-recursive async version for all tiles
-	await Promise.all(tiles.map(async (tile) => {
-		await this._loadTile(tile)
-	}));
-      };
-      if (this.options.confirm) {
-        this.options.confirm(this.status, succescallback);
-      } else {
-        succescallback();
-      }
-    },
-    /**
+    const latlngBounds = this.options.bounds || this._map.getBounds();
+
+    for (let i = 0; i < zoomlevels.length; i += 1) {
+      bounds = L.bounds(
+        this._map.project(latlngBounds.getNorthWest(), zoomlevels[i]),
+        this._map.project(latlngBounds.getSouthEast(), zoomlevels[i]),
+      );
+      tiles = tiles.concat(this._baseLayer.getTileUrls(bounds, zoomlevels[i]));
+    }
+    this._resetStatus(tiles);
+    const succescallback = async () => {
+      this._baseLayer.fire('savestart', this.status);
+      // const subdlength = this._baseLayer.getSimultaneous();
+      // TODO!
+      // storeTiles(tiles, subdlength);
+      // using the non-recursive async version for all tiles
+      await Promise.all(tiles.map(async (tile) => {
+        await this._loadTile(tile);
+      }));
+    };
+    if (this.options.confirm) {
+      this.options.confirm(this.status, succescallback);
+    } else {
+      succescallback();
+    }
+  },
+  /**
      * set status prop on save init
      * @param {string[]} tiles [description]
      * @private
      */
-    _resetStatus(tiles) {
-      this.status = {
-        lengthLoaded: 0,
-        lengthToBeSaved: tiles.length,
-        lengthSaved: 0,
-        _tilesforSave: tiles,
-      };
-    },
-    /**
+  _resetStatus(tiles) {
+    this.status = {
+      lengthLoaded: 0,
+      lengthToBeSaved: tiles.length,
+      lengthSaved: 0,
+      _tilesforSave: tiles,
+    };
+  },
+  /**
      * Loop over status._tilesforSave prop till all tiles are downloaded
      * Calls _saveTile for each download
      * @private
      * @return {void}
      */
-    // non-recursive async version of _loadTile
-    _loadTile: async function _loadTile(jtile) {
-        var self = this;
-        var tile = jtile;
-        downloadTile(tile.url).then(function (blob) {
-          self.status.lengthLoaded += 1;
-          self._saveTile(tile, blob);
-          self._baseLayer.fire('loadtileend', self.status);
-          if (self.status.lengthLoaded === self.status.lengthToBeSaved) {
-            self._baseLayer.fire('loadend', self.status);
-          }
-        });
-    },
+  // non-recursive async version of _loadTile
+  _loadTile: async function _loadTile(jtile) {
+    const self = this;
+    const tile = jtile;
+    downloadTile(tile.url).then((blob) => {
+      self.status.lengthLoaded += 1;
+      self._saveTile(tile, blob);
+      self._baseLayer.fire('loadtileend', self.status);
+      if (self.status.lengthLoaded === self.status.lengthToBeSaved) {
+        self._baseLayer.fire('loadend', self.status);
+      }
+    });
+  },
 
-    /**
+  /**
      * [_saveTile description]
      * @private
      * @param  {object} tileInfo save key
@@ -215,38 +218,37 @@ const ControlSaveTiles = L.Control.extend(
      * @param  {blob} blob    [description]
      * @return {void}         [description]
      */
-    _saveTile(tileInfo, blob) {    // original is synchronous
-      const self = this;
-      saveTile(tileInfo, blob)
-        .then(() => {
-          self.status.lengthSaved += 1;
-          self._baseLayer.fire('savetileend', self.status);
-          if (self.status.lengthSaved === self.status.lengthToBeSaved) {
-            self._baseLayer.fire('saveend', self.status);
-            self.setStorageSize();
-          }
-        })
-        .catch((err) => {
-          throw new Error(err);
-        });
-    },
-    _rmTiles() {
-      const self = this;
-      const successCallback = () => {
-        truncate().then(() => {
-          self.status.storagesize = 0;
-          self._baseLayer.fire('tilesremoved');
-          self._baseLayer.fire('storagesize', self.status);
-        });
-      };
-      if (this.options.confirmRemoval) {
-        this.options.confirmRemoval(this.status, successCallback);
-      } else {
-        successCallback();
-      }
-    },
+  _saveTile(tileInfo, blob) { // original is synchronous
+    const self = this;
+    saveTile(tileInfo, blob)
+      .then(() => {
+        self.status.lengthSaved += 1;
+        self._baseLayer.fire('savetileend', self.status);
+        if (self.status.lengthSaved === self.status.lengthToBeSaved) {
+          self._baseLayer.fire('saveend', self.status);
+          self.setStorageSize();
+        }
+      })
+      .catch((err) => {
+        throw new Error(err);
+      });
   },
-);
+  _rmTiles() {
+    const self = this;
+    const successCallback = () => {
+      truncate().then(() => {
+        self.status.storagesize = 0;
+        self._baseLayer.fire('tilesremoved');
+        self._baseLayer.fire('storagesize', self.status);
+      });
+    };
+    if (this.options.confirmRemoval) {
+      this.options.confirmRemoval(this.status, successCallback);
+    } else {
+      successCallback();
+    }
+  },
+});
 /**
  * @function L.control.savetiles
  * @param  {object} baseLayer     {@link http://leafletjs.com/reference-1.2.0.html#tilelayer}

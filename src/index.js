@@ -9,6 +9,4 @@ import {
   truncate,
 } from './TileManager';
 
-export {
-  getStorageInfo, getTileUrls, getStorageLength, truncate, getStoredTilesAsJson, removeTile,
-};
+export { getStorageInfo, getTileUrls, getStorageLength, truncate, getStoredTilesAsJson, removeTile };
